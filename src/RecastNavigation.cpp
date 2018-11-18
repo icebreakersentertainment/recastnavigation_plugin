@@ -1099,27 +1099,6 @@ AgentHandle RecastNavigation::createAgent(
 	agent.agentStateChangeListener = std::move(agentStateChangeListener);
 	agent.movementRequestStateChangeListener = std::move(movementRequestStateChangeListener);
 
-	const dtQueryFilter* filter = crowd.crowd->getFilter(0);
-	const float* ext = crowd.crowd->getQueryExtents();
-	dtPolyRef targetRef;
-	float targetPos[3];
-	float p[3] = {position.x - 3, position.y, position.z - 1};
-
-	const auto& navigationMesh = navigationMeshes_[crowd.navigationMeshHandle];
-
-	navigationMesh.navMeshQuery->findNearestPoly(p, ext, filter, &targetRef, targetPos);
-
-	if (targetRef)
-	{
-		crowd.crowd->requestMoveTarget(idx, targetRef, targetPos);
-	}
-
-	// Init trail
-	//AgentTrail* trail = &m_trails[idx];
-	//for (int i = 0; i < AGENT_MAX_TRAIL; ++i)
-	//	dtVcopy(&trail->trail[i*3], p);
-	//trail->htrail = 0;
-
 	return agentHandle;
 }
 
