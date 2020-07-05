@@ -1048,14 +1048,14 @@ void RecastNavigation::destroy(const PathfindingSceneHandle& pathfindingSceneHan
 }
 
 AgentHandle RecastNavigation::createAgent(
-	const PathfindingSceneHandle& pathfindingSceneHandle,
-	const CrowdHandle& crowdHandle,
-	const glm::vec3& position,
-	const AgentParams& agentParams,
-	std::unique_ptr<IAgentMotionChangeListener> agentMotionChangeListener,
-	std::unique_ptr<IAgentStateChangeListener> agentStateChangeListener,
-	std::unique_ptr<IMovementRequestStateChangeListener> movementRequestStateChangeListener,
-	const UserData& userData
+        const PathfindingSceneHandle& pathfindingSceneHandle,
+        const CrowdHandle& crowdHandle,
+        const glm::vec3& position,
+        const AgentParams& agentParams,
+        std::unique_ptr<IAgentMotionChangeListener> agentMotionChangeListener,
+        std::unique_ptr<IAgentStateChangeListener> agentStateChangeListener,
+        std::unique_ptr<IMovementRequestStateChangeListener> movementRequestStateChangeListener,
+        const boost::any &userData
 )
 {
 	LOG_DEBUG(logger_, "Creating agent with parameters %s", agentParams);
@@ -1269,13 +1269,13 @@ void RecastNavigation::setMovementRequestChangeListener(
 	agent.movementRequestStateChangeListener = std::move(movementRequestStateChangeListener);
 }
 
-void RecastNavigation::setUserData(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle, const UserData& userData)
+void RecastNavigation::setUserData(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle, const boost::any& userData)
 {
 
 }
 
-UserData ud;
-UserData& RecastNavigation::getUserData(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle) const
+boost::any ud;
+boost::any& RecastNavigation::getUserData(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle) const
 {
 	return ud;
 }

@@ -25,6 +25,7 @@
 #include <ChunkyTriMesh.h>
 
 #include <fastlz.h>
+#include <boost/any.hpp>
 
 #include "pathfinding/IPathfindingEngine.hpp"
 
@@ -329,14 +330,14 @@ public:
 	virtual void destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle) override;
 
 	virtual AgentHandle createAgent(
-		const PathfindingSceneHandle& pathfindingSceneHandle,
-		const CrowdHandle& crowdHandle,
-		const glm::vec3& position,
-		const AgentParams& agentParams = AgentParams(),
-		std::unique_ptr<IAgentMotionChangeListener> agentMotionChangeListener = nullptr,
-		std::unique_ptr<IAgentStateChangeListener> agentStateChangeListener = nullptr,
-		std::unique_ptr<IMovementRequestStateChangeListener> movementRequestStateChangeListener = nullptr,
-		const UserData& userData = UserData()
+            const PathfindingSceneHandle& pathfindingSceneHandle,
+            const CrowdHandle& crowdHandle,
+            const glm::vec3& position,
+            const AgentParams& agentParams = AgentParams(),
+            std::unique_ptr<IAgentMotionChangeListener> agentMotionChangeListener = nullptr,
+            std::unique_ptr<IAgentStateChangeListener> agentStateChangeListener = nullptr,
+            std::unique_ptr<IMovementRequestStateChangeListener> movementRequestStateChangeListener = nullptr,
+            const boost::any &userData = UserData()
 	) override;
 	virtual void destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle) override;
 
@@ -383,12 +384,12 @@ public:
 	) override;
 
 	virtual void setUserData(
-		const PathfindingSceneHandle& pathfindingSceneHandle,
-		const CrowdHandle& crowdHandle,
-		const AgentHandle& agentHandle,
-		const UserData& userData
+            const PathfindingSceneHandle& pathfindingSceneHandle,
+            const CrowdHandle& crowdHandle,
+            const AgentHandle& agentHandle,
+            const boost::any& userData
 	) override;
-	virtual UserData& getUserData(
+	virtual boost::any& getUserData(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle
