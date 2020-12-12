@@ -7,18 +7,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS "")
 set(RECASTNAVIGATION_PLUGIN_DEFINITIONS "")
 if(MSVC)
-  set(RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS "/EHsc /MP")
+  list(APPEND RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS /EHsc /MP)
   if(CMAKE_BUILD_TYPE MATCHES DEBUG)
-    set(RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS "/EHsc /MP")
+    list(APPEND RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS /EHsc /MP)
   endif()
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo OR ICEENGINE_ENABLE_DEBUG_LOGGING)
-  list(APPEND SQLITECPP_PLUGIN_DEFINITIONS -DICEENGINE_ENABLE_DEBUG_LOGGING)
+  list(APPEND RECASTNAVIGATION_PLUGIN_DEFINITIONS -DICEENGINE_ENABLE_DEBUG_LOGGING)
 endif()
 
 if(ICEENGINE_ENABLE_TRACE_LOGGING)
-  list(APPEND SQLITECPP_PLUGIN_DEFINITIONS -DICEENGINE_ENABLE_TRACE_LOGGING)
+  list(APPEND RECASTNAVIGATION_PLUGIN_DEFINITIONS -DICEENGINE_ENABLE_TRACE_LOGGING)
 endif()
 
 include_directories(./recastnavigation/recastnavigation/Detour/Include)
@@ -45,6 +45,8 @@ file(
   "recastnavigation/recastnavigation/Recast/Source/*.cpp"
   "recastnavigation/recastnavigation/RecastDemo/Source/ChunkyTriMesh.cpp"
 )
+list(APPEND SOURCES "${ICEENGINE_BASE_DIR}/src/exceptions/Exception.cpp")
+list(APPEND SOURCES "${ICEENGINE_BASE_DIR}/src/exceptions/Stacktrace.cpp")
 
 add_library(recastnavigation_plugin SHARED ${SOURCES})
 
@@ -52,5 +54,5 @@ target_include_directories(recastnavigation_plugin PRIVATE ${ICEENGINE_INCLUDE_D
 target_include_directories(recastnavigation_plugin PRIVATE ${BOOST_INCLUDE_DIRS})
 target_include_directories(recastnavigation_plugin PRIVATE ${GLM_INCLUDE_DIRS})
 
-target_compile_definitions(recastnavigation_plugin PRIVATE ${SQLITECPP_PLUGIN_DEFINITIONS})
+target_compile_definitions(recastnavigation_plugin PRIVATE ${RECASTNAVIGATION_PLUGIN_DEFINITIONS})
 target_compile_options(recastnavigation_plugin PRIVATE ${RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS})

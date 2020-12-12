@@ -65,20 +65,20 @@ namespace recastnavigation
 
 struct FastLZCompressor : public dtTileCacheCompressor
 {
-	virtual int maxCompressedSize(const int bufferSize)
+	int maxCompressedSize(const int bufferSize) override
 	{
 		return (int)(bufferSize* 1.05f);
 	}
 
-	virtual dtStatus compress(const unsigned char* buffer, const int bufferSize,
-							  unsigned char* compressed, const int /*maxCompressedSize*/, int* compressedSize)
+	dtStatus compress(const unsigned char* buffer, const int bufferSize,
+							  unsigned char* compressed, const int /*maxCompressedSize*/, int* compressedSize) override
 	{
 		*compressedSize = fastlz_compress((const void *const)buffer, bufferSize, compressed);
 		return DT_SUCCESS;
 	}
 
-	virtual dtStatus decompress(const unsigned char* compressed, const int compressedSize,
-								unsigned char* buffer, const int maxBufferSize, int* bufferSize)
+	dtStatus decompress(const unsigned char* compressed, const int compressedSize,
+								unsigned char* buffer, const int maxBufferSize, int* bufferSize) override
 	{
 		*bufferSize = fastlz_decompress(compressed, compressedSize, buffer, maxBufferSize);
 		return *bufferSize < 0 ? DT_FAILURE : DT_SUCCESS;
@@ -109,13 +109,13 @@ struct LinearAllocator : public dtTileCacheAlloc
 		capacity = cap;
 	}
 
-	virtual void reset()
+	void reset() override
 	{
 		high = dtMax(high, top);
 		top = 0;
 	}
 
-	virtual void* alloc(const size_t size)
+	void* alloc(const size_t size) override
 	{
 		if (!buffer)
 			return 0;
@@ -126,7 +126,7 @@ struct LinearAllocator : public dtTileCacheAlloc
 		return mem;
 	}
 
-	virtual void free(void* /*ptr*/)
+	void free(void* /*ptr*/) override
 	{
 		// Empty
 	}
@@ -172,7 +172,7 @@ struct MeshProcess : public dtTileCacheMeshProcess
 //		m_geom = geom;
 //	}
 
-	virtual void process(struct dtNavMeshCreateParams* params, unsigned char* polyAreas, unsigned short* polyFlags)
+	void process(struct dtNavMeshCreateParams* params, unsigned char* polyAreas, unsigned short* polyFlags) override
 	{
 		// Update poly flags from areas.
 		for (int i = 0; i < params->polyCount; ++i)
@@ -305,31 +305,32 @@ class RecastNavigation : public IPathfindingEngine
 {
 public:
 	RecastNavigation(utilities::Properties* properties, fs::IFileSystem* fileSystem, logger::ILogger* logger);
-	virtual ~RecastNavigation() override = default;
+	~RecastNavigation() override = default;
 
 	RecastNavigation(const RecastNavigation& other) = delete;
 
-	virtual void tick(const PathfindingSceneHandle& pathfindingSceneHandle, const float32 delta) override;
+	void tick(const PathfindingSceneHandle& pathfindingSceneHandle, const float32 delta) override;
+    void renderDebug(const PathfindingSceneHandle& pathfindingSceneHandle) override;
 
-	virtual PathfindingSceneHandle createPathfindingScene() override;
-	virtual void destroyPathfindingScene(const PathfindingSceneHandle& pathfindingSceneHandle) override;
+	PathfindingSceneHandle createPathfindingScene() override;
+	void destroyPathfindingScene(const PathfindingSceneHandle& pathfindingSceneHandle) override;
 
-	virtual void setPathfindingDebugRenderer(IPathfindingDebugRenderer* pathfindingDebugRenderer) override;
-	virtual void setDebugRendering(const PathfindingSceneHandle& pathfindingSceneHandle, const bool enabled) override;
+	void setPathfindingDebugRenderer(IPathfindingDebugRenderer* pathfindingDebugRenderer) override;
+	void setDebugRendering(const PathfindingSceneHandle& pathfindingSceneHandle, const bool enabled) override;
 
-	virtual PolygonMeshHandle createPolygonMesh(const ITerrain* terrain, const PolygonMeshConfig& polygonMeshConfig = PolygonMeshConfig()) override;
-	virtual void destroy(const PolygonMeshHandle& polygonMeshHandle) override;
+	PolygonMeshHandle createPolygonMesh(const ITerrain* terrain, const PolygonMeshConfig& polygonMeshConfig = PolygonMeshConfig()) override;
+	void destroy(const PolygonMeshHandle& polygonMeshHandle) override;
 
-	virtual ObstacleHandle createObstacle(const PolygonMeshHandle& polygonMeshHandle, const glm::vec3& position, const float32 radius, const float32 height) override;
-	virtual void destroy(const PolygonMeshHandle& polygonMeshHandle, const ObstacleHandle& obstacleHandle) override;
+	ObstacleHandle createObstacle(const PolygonMeshHandle& polygonMeshHandle, const glm::vec3& position, const float32 radius, const float32 height) override;
+	void destroy(const PolygonMeshHandle& polygonMeshHandle, const ObstacleHandle& obstacleHandle) override;
 
-	virtual NavigationMeshHandle createNavigationMesh(const PolygonMeshHandle& polygonMeshHandle, const NavigationMeshConfig& navigationMeshConfig = NavigationMeshConfig()) override;
-	virtual void destroy(const NavigationMeshHandle& navigationMeshHandle) override;
+	NavigationMeshHandle createNavigationMesh(const PolygonMeshHandle& polygonMeshHandle, const NavigationMeshConfig& navigationMeshConfig = NavigationMeshConfig()) override;
+	void destroy(const NavigationMeshHandle& navigationMeshHandle) override;
 
-	virtual CrowdHandle createCrowd(const PathfindingSceneHandle& pathfindingSceneHandle, const NavigationMeshHandle& navigationMeshHandle, const CrowdConfig& crowdConfig) override;
-	virtual void destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle) override;
+	CrowdHandle createCrowd(const PathfindingSceneHandle& pathfindingSceneHandle, const NavigationMeshHandle& navigationMeshHandle, const CrowdConfig& crowdConfig) override;
+	void destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle) override;
 
-	virtual AgentHandle createAgent(
+	AgentHandle createAgent(
             const PathfindingSceneHandle& pathfindingSceneHandle,
             const CrowdHandle& crowdHandle,
             const glm::vec3& position,
@@ -339,57 +340,57 @@ public:
             std::unique_ptr<IMovementRequestStateChangeListener> movementRequestStateChangeListener = nullptr,
             const boost::any &userData = UserData()
 	) override;
-	virtual void destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle) override;
+	void destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle) override;
 
-	virtual void requestMoveTarget(
+	void requestMoveTarget(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle,
 		const glm::vec3& position
 	) override;
 
-	virtual void resetMoveTarget(
+	void resetMoveTarget(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle
 	) override;
 
-	virtual void requestMoveVelocity(
+	void requestMoveVelocity(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle,
 		const glm::vec3& velocity
 	) override;
 
-	//virtual void test2(entityx::Entity entity, Scene* scene, const glm::vec3& position, const glm::quat& orientation) override;
-	//virtual void test3(entityx::Entity entity, const glm::vec3& position, const glm::quat& orientation) override;
+	//void test2(entityx::Entity entity, Scene* scene, const glm::vec3& position, const glm::quat& orientation) override;
+	//void test3(entityx::Entity entity, const glm::vec3& position, const glm::quat& orientation) override;
 
-	virtual void setMotionChangeListener(
+	void setMotionChangeListener(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle,
 		std::unique_ptr<IAgentMotionChangeListener> agentMotionChangeListener
 	) override;
-	virtual void setStateChangeListener(
+	void setStateChangeListener(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle,
 		std::unique_ptr<IAgentStateChangeListener> agentStateChangeListener
 	) override;
-	virtual void setMovementRequestChangeListener(
+	void setMovementRequestChangeListener(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle,
 		std::unique_ptr<IMovementRequestStateChangeListener> movementRequestStateChangeListener
 	) override;
 
-	virtual void setUserData(
+	void setUserData(
             const PathfindingSceneHandle& pathfindingSceneHandle,
             const CrowdHandle& crowdHandle,
             const AgentHandle& agentHandle,
             const boost::any& userData
 	) override;
-	virtual boost::any& getUserData(
+	boost::any& getUserData(
 		const PathfindingSceneHandle& pathfindingSceneHandle,
 		const CrowdHandle& crowdHandle,
 		const AgentHandle& agentHandle

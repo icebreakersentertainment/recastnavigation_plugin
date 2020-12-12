@@ -22,6 +22,8 @@
 
 #include "RecastNavigation.hpp"
 
+#include "exceptions/Exception.hpp"
+
 //if (!dtCreateNavMeshData(&navigationMesh.params, &navData, &navDataSize))
 //{
 //	throw std::runtime_error("Unable to build Detour navmesh.");
@@ -51,6 +53,18 @@ static const int MAX_LAYERS = 32;
 
 namespace
 {
+
+static std::string getErrorMessage(const dtStatus status)
+{
+    if (status & DT_WRONG_MAGIC)   return "Input data is not recognized.";
+    if (status & DT_WRONG_VERSION) return "Input data is in wrong version.";
+    if (status & DT_OUT_OF_MEMORY) return "Operation ran out of memory.";
+    if (status & DT_INVALID_PARAM) return "An input parameter was invalid.";
+    if (status & DT_BUFFER_TOO_SMALL) return "Result buffer for the query was too small to store all results.";
+    if (status & DT_OUT_OF_NODES) return "Query ran out of nodes during search.";
+    if (status & DT_PARTIAL_RESULT) return "Query did not reach the end location, returning best guess.";
+    if (status & DT_ALREADY_OCCUPIED) return "A tile has already been assigned to the given x,y coordinate";
+}
 
 static int calcLayerBufferSize(const int gridWidth, const int gridHeight)
 {
@@ -107,7 +121,7 @@ std::vector<TileCacheData> rasterizeTileLayers(
 //	TileCacheData tiles[MAX_LAYERS];
 
 	const float* verts = &polygonMesh.vertices[0].x;
-	const int nverts = polygonMesh.vertices.size();
+	const int nverts = static_cast<int>(polygonMesh.vertices.size());
 
 	// Tile bounds.
 	const float tcs = polygonMesh.config.tileSize * polygonMesh.config.cs;
@@ -130,7 +144,7 @@ std::vector<TileCacheData> rasterizeTileLayers(
 	auto heightField = std::unique_ptr<rcHeightfield, decltype(&rcFreeHeightField)>(rcAllocHeightfield(), rcFreeHeightField);
 	if (!heightField) throw std::bad_alloc(); //("Unable to create height field - out of memory.");
 
-	if (!rcCreateHeightfield(&ctx, *heightField, tcfg.width, tcfg.height, tcfg.bmin, tcfg.bmax, tcfg.cs, tcfg.ch)) throw std::runtime_error("Unable to create height field.");
+	if (!rcCreateHeightfield(&ctx, *heightField, tcfg.width, tcfg.height, tcfg.bmin, tcfg.bmax, tcfg.cs, tcfg.ch)) throw Exception("Unable to create height field.");
 
 	auto triangleAreas = std::vector<unsigned char>(chunkyMesh->maxTrisPerChunk, 0);
 
@@ -165,13 +179,13 @@ std::vector<TileCacheData> rasterizeTileLayers(
 	auto compactHeightfield = std::unique_ptr<rcCompactHeightfield, decltype(&rcFreeCompactHeightfield)>(rcAllocCompactHeightfield(), rcFreeCompactHeightfield);
 	if (!rcBuildCompactHeightfield(&ctx, tcfg.walkableHeight, tcfg.walkableClimb, *heightField, *compactHeightfield))
 	{
-		throw std::runtime_error("Unable to build compact data.");
+		throw Exception("Unable to build compact data.");
 	}
 
 	// Erode the walkable area by agent radius.
 	if (!rcErodeWalkableArea(&ctx, tcfg.walkableRadius, *compactHeightfield))
 	{
-		throw std::runtime_error("Unable to erode.");
+		throw Exception("Unable to erode.");
 	}
 
 	// (Optional) Mark areas.
@@ -186,7 +200,7 @@ std::vector<TileCacheData> rasterizeTileLayers(
 	auto heightfieldLayerSet = std::unique_ptr<rcHeightfieldLayerSet, decltype(&rcFreeHeightfieldLayerSet)>(rcAllocHeightfieldLayerSet(), rcFreeHeightfieldLayerSet);
 	if (!rcBuildHeightfieldLayers(&ctx, *compactHeightfield, tcfg.borderSize, tcfg.walkableHeight, *heightfieldLayerSet))
 	{
-		throw std::runtime_error("Could not build heighfield layers.");
+		throw Exception("Could not build heighfield layers.");
 	}
 
 	FastLZCompressor comp;
@@ -221,10 +235,10 @@ std::vector<TileCacheData> rasterizeTileLayers(
 		header.hmin = (unsigned short)layer->hmin;
 		header.hmax = (unsigned short)layer->hmax;
 
-		dtStatus status = dtBuildTileCacheLayer(&comp, &header, layer->heights, layer->areas, layer->cons, &tile->data, &tile->dataSize);
+		const dtStatus status = dtBuildTileCacheLayer(&comp, &header, layer->heights, layer->areas, layer->cons, &tile->data, &tile->dataSize);
 		if (dtStatusFailed(status))
 		{
-			throw std::runtime_error("Could not build tile cache layer.");
+			throw Exception("Could not build tile cache layer: " + getErrorMessage(status));
 //			return 0;
 		}
 	}
@@ -586,19 +600,18 @@ RecastNavigation::RecastNavigation(utilities::Properties* properties, fs::IFileS
 
 void RecastNavigation::tick(const PathfindingSceneHandle& pathfindingSceneHandle, const float32 delta)
 {
-	//pathfindingScenes_[pathfindingSceneHandle].dynamicsWorld->stepSimulation(delta, 10);
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 
-	if (pathfindingScene.debugRendering && debugRenderer_)
-	{
-		for (const auto& crowd : pathfindingScene.crowds)
-		{
-			const auto& navigationMesh = navigationMeshes_[crowd.navigationMeshHandle];
-			const auto& polygonMesh = polygonMeshes_[navigationMesh.polygonMeshHandle];
-
-			debugRender(crowd, navigationMesh, polygonMesh, *debugRenderer_);
-		}
-	}
+//	if (pathfindingScene.debugRendering && debugRenderer_)
+//	{
+//		for (const auto& crowd : pathfindingScene.crowds)
+//		{
+//			const auto& navigationMesh = navigationMeshes_[crowd.navigationMeshHandle];
+//			const auto& polygonMesh = polygonMeshes_[navigationMesh.polygonMeshHandle];
+//
+//			debugRender(crowd, navigationMesh, polygonMesh, *debugRenderer_);
+//		}
+//	}
 	
 //	for (auto& polygonMesh : polygonMeshes_)
 //	{
@@ -652,18 +665,33 @@ void RecastNavigation::tick(const PathfindingSceneHandle& pathfindingSceneHandle
 	}
 }
 
+void RecastNavigation::renderDebug(const PathfindingSceneHandle& pathfindingSceneHandle)
+{
+    const auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
+
+    if (pathfindingScene.debugRendering && debugRenderer_)
+    {
+        for (const auto& crowd : pathfindingScene.crowds)
+        {
+            const auto& navigationMesh = navigationMeshes_[crowd.navigationMeshHandle];
+            const auto& polygonMesh = polygonMeshes_[navigationMesh.polygonMeshHandle];
+
+            debugRender(crowd, navigationMesh, polygonMesh, *debugRenderer_);
+        }
+    }
+}
+
 PathfindingSceneHandle RecastNavigation::createPathfindingScene()
 {
-	auto pathfindingSceneHandle = pathfindingScenes_.create();
-	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
+    LOG_DEBUG(logger_, "Creating pathfinding scene");
 
-	//pathfindingScene.broadphase = std::make_unique<btDbvtBroadphase>();
-
-	return pathfindingSceneHandle;
+	return pathfindingScenes_.create();
 }
 
 void RecastNavigation::destroyPathfindingScene(const PathfindingSceneHandle& pathfindingSceneHandle)
 {
+    LOG_DEBUG(logger_, "Destroying pathfinding scene %s", pathfindingSceneHandle);
+
 	pathfindingScenes_.destroy(pathfindingSceneHandle);
 }
 
@@ -680,9 +708,9 @@ void RecastNavigation::setDebugRendering(const PathfindingSceneHandle& pathfindi
 
 PolygonMeshHandle RecastNavigation::createPolygonMesh(const ITerrain* terrain, const PolygonMeshConfig& polygonMeshConfig)
 {
-	LOG_INFO(logger_, "Creating polygon mesh");
+    LOG_DEBUG(logger_, "Creating polygon mesh with polygon mesh config %s", polygonMeshConfig);
 
-	auto polygonMeshHandle = polygonMeshes_.create();
+	const auto polygonMeshHandle = polygonMeshes_.create();
 	auto& polygonMesh = polygonMeshes_[polygonMeshHandle];
 
 	rcContext ctx = rcContext();
@@ -693,7 +721,7 @@ PolygonMeshHandle RecastNavigation::createPolygonMesh(const ITerrain* terrain, c
 	float bmin[3];
 	float bmax[3];
 
-	rcCalcBounds(&polygonMesh.vertices[0].x, polygonMesh.vertices.size(), bmin, bmax);
+	rcCalcBounds(&polygonMesh.vertices[0].x, static_cast<int>(polygonMesh.vertices.size()), bmin, bmax);
 
 	// recast configuration
 	polygonMesh.config.cs = polygonMeshConfig.cellSize;
@@ -732,9 +760,9 @@ PolygonMeshHandle RecastNavigation::createPolygonMesh(const ITerrain* terrain, c
 	polygonMesh.tileCacheParams.ch = polygonMesh.config.ch;
 	polygonMesh.tileCacheParams.width = polygonMeshConfig.tileSize;
 	polygonMesh.tileCacheParams.height = polygonMeshConfig.tileSize;
-	polygonMesh.tileCacheParams.walkableHeight = polygonMeshConfig.walkableHeight;
-	polygonMesh.tileCacheParams.walkableRadius = polygonMeshConfig.walkableRadius;
-	polygonMesh.tileCacheParams.walkableClimb = polygonMeshConfig.walkableClimb;
+	polygonMesh.tileCacheParams.walkableHeight = static_cast<float>(polygonMeshConfig.walkableHeight);
+	polygonMesh.tileCacheParams.walkableRadius = static_cast<float>(polygonMeshConfig.walkableRadius);
+	polygonMesh.tileCacheParams.walkableClimb = static_cast<float>(polygonMeshConfig.walkableClimb);
 	polygonMesh.tileCacheParams.maxSimplificationError = polygonMeshConfig.maxSimplificationError;
 	polygonMesh.tileCacheParams.maxTiles = tileWidth*tileHeight*EXPECTED_LAYERS_PER_TILE;
 	polygonMesh.tileCacheParams.maxObstacles = polygonMeshConfig.maxObstacles;
@@ -745,15 +773,15 @@ PolygonMeshHandle RecastNavigation::createPolygonMesh(const ITerrain* terrain, c
 	if (!polygonMesh.tileCache) throw std::bad_alloc();
 
 	dtStatus status = polygonMesh.tileCache->init(&polygonMesh.tileCacheParams, &polygonMesh.linearAllocator, &polygonMesh.fastrLzCompressor, &polygonMesh.meshProcess);
-	if (dtStatusFailed(status)) throw std::runtime_error("Could not init tile cache.");
+	if (dtStatusFailed(status)) throw Exception("Could not init tile cache: " + getErrorMessage(status));
 
  	const int trianglesPerChunk = 256;
 
  	LOG_TRACE(logger_, "creating chunky triangle mesh with %d triangles per chunk", trianglesPerChunk);
 
-	if (!rcCreateChunkyTriMesh(&polygonMesh.vertices[0].x, reinterpret_cast<const int*>(&polygonMesh.indices[0]), polygonMesh.indices.size()/3, trianglesPerChunk, &polygonMesh.chunkyMesh))
+	if (!rcCreateChunkyTriMesh(&polygonMesh.vertices[0].x, reinterpret_cast<const int*>(&polygonMesh.indices[0]), static_cast<int>(polygonMesh.indices.size())/3, trianglesPerChunk, &polygonMesh.chunkyMesh))
 	{
-		throw std::runtime_error("Failed to build chunky mesh.");
+		throw Exception("Failed to build chunky mesh.");
 	}
 
 	LOG_TRACE(logger_, "created chunky triangle mesh %1%", polygonMesh.chunkyMesh);
@@ -780,7 +808,7 @@ PolygonMeshHandle RecastNavigation::createPolygonMesh(const ITerrain* terrain, c
 					polygonMesh.tiles.pop_back();
 //					tile.data = 0;
 //					continue;
-					 throw std::runtime_error("Could not add tile to tile cache.");
+					 throw Exception("Could not add tile to tile cache: " + getErrorMessage(status));
 				}
 
 				polygonMesh.cacheLayerCount++;
@@ -824,19 +852,27 @@ PolygonMeshHandle RecastNavigation::createPolygonMesh(const ITerrain* terrain, c
 
 void RecastNavigation::destroy(const PolygonMeshHandle& polygonMeshHandle)
 {
+    LOG_DEBUG(logger_, "Destroying polygon mesh %s", polygonMeshHandle);
+
 	polygonMeshes_.destroy(polygonMeshHandle);
 }
 
 ObstacleHandle RecastNavigation::createObstacle(const PolygonMeshHandle& polygonMeshHandle, const glm::vec3& position, const float32 radius, const float32 height)
 {
+    LOG_DEBUG(logger_, "Creating obstacle with polygon mesh %s, position %s, radius %s, and height %s", polygonMeshHandle, position, radius, height);
+
 	auto& polygonMesh = polygonMeshes_[polygonMeshHandle];
 
 	auto obstacleHandle = polygonMesh.obstacles.create();
 	auto& obstacle = polygonMesh.obstacles[obstacleHandle];
 
-	if (dtStatusFailed(polygonMesh.tileCache->addObstacle(&position.x, radius, height, &obstacle.obstacleReference)))
+    const dtStatus status = polygonMesh.tileCache->addObstacle(&position.x, radius, height, &obstacle.obstacleReference);
+
+	if (dtStatusFailed(status))
 	{
-		throw std::runtime_error("Unable to add obstacle");
+        polygonMesh.obstacles.destroy(obstacleHandle);
+
+		throw Exception("Unable to add obstacle: " + getErrorMessage(status));
 	}
 
 	return obstacleHandle;
@@ -844,6 +880,8 @@ ObstacleHandle RecastNavigation::createObstacle(const PolygonMeshHandle& polygon
 
 void RecastNavigation::destroy(const PolygonMeshHandle& polygonMeshHandle, const ObstacleHandle& obstacleHandle)
 {
+    LOG_DEBUG(logger_, "Destroying obstacle %s with polygon mesh %s", obstacleHandle, polygonMeshHandle);
+
 	auto& polygonMesh = polygonMeshes_[polygonMeshHandle];
 	auto& obstacle = polygonMesh.obstacles[obstacleHandle];
 
@@ -855,7 +893,7 @@ void RecastNavigation::destroy(const PolygonMeshHandle& polygonMeshHandle, const
 
 NavigationMeshHandle RecastNavigation::createNavigationMesh(const PolygonMeshHandle& polygonMeshHandle, const NavigationMeshConfig& navigationMeshConfig)
 {
-	LOG_INFO(logger_, "Creating navigation mesh");
+    LOG_DEBUG(logger_, "Creating navigation mesh with polygon mesh %s and navigation mesh config %s", polygonMeshHandle, navigationMeshConfig);
 
 	auto navigationMeshHandle = navigationMeshes_.create();
 	auto& navigationMesh = navigationMeshes_[navigationMeshHandle];
@@ -943,7 +981,7 @@ NavigationMeshHandle RecastNavigation::createNavigationMesh(const PolygonMeshHan
 		if (!navigationMesh.navMesh)
 		{
 //			dtFree(navData);
-			throw std::runtime_error("Unable to create Detour navmesh");
+			throw Exception("Unable to create Detour navmesh");
 		}
 
 		dtStatus status;
@@ -953,13 +991,13 @@ NavigationMeshHandle RecastNavigation::createNavigationMesh(const PolygonMeshHan
 		if (dtStatusFailed(status))
 		{
 //			dtFree(navData);
-			throw std::runtime_error("Unable to init Detour navmesh");
+			throw Exception("Unable to init Detour navmesh: " + getErrorMessage(status));
 		}
 
 		status = navigationMesh.navMeshQuery->init(navigationMesh.navMesh.get(), 2048);
 		if (dtStatusFailed(status))
 		{
-			throw std::runtime_error("Unable to init Detour navmesh query");
+			throw Exception("Unable to init Detour navmesh query: " + getErrorMessage(status));
 		}
 
 		const int tileWidth = (polygonMesh.gridWidth + polygonMesh.config.tileSize-1) / polygonMesh.config.tileSize;
@@ -982,12 +1020,14 @@ NavigationMeshHandle RecastNavigation::createNavigationMesh(const PolygonMeshHan
 
 void RecastNavigation::destroy(const NavigationMeshHandle& navigationMeshHandle)
 {
+    LOG_DEBUG(logger_, "Destroying navigation mesh %s", navigationMeshHandle);
+
 	navigationMeshes_.destroy(navigationMeshHandle);
 }
 
 CrowdHandle RecastNavigation::createCrowd(const PathfindingSceneHandle& pathfindingSceneHandle, const NavigationMeshHandle& navigationMeshHandle, const CrowdConfig& crowdConfig)
 {
-	LOG_DEBUG(logger_, "Creating crowd");
+    LOG_DEBUG(logger_, "Creating crowd in scene %s with navigation mesh %s and crowd config %s", pathfindingSceneHandle, navigationMeshHandle, crowdConfig);
 
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 
@@ -1043,6 +1083,8 @@ CrowdHandle RecastNavigation::createCrowd(const PathfindingSceneHandle& pathfind
 
 void RecastNavigation::destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle)
 {
+    LOG_DEBUG(logger_, "Destroying crowd %s in scene %s", crowdHandle, pathfindingSceneHandle);
+
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 	pathfindingScene.crowds.destroy(crowdHandle);
 }
@@ -1058,7 +1100,7 @@ AgentHandle RecastNavigation::createAgent(
         const boost::any &userData
 )
 {
-	LOG_DEBUG(logger_, "Creating agent with parameters %s", agentParams);
+	LOG_DEBUG(logger_, "Creating agent in crowd %s in scene %s with parameters %s", crowdHandle, pathfindingSceneHandle, agentParams);
 
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 	auto& crowd = pathfindingScene.crowds[crowdHandle];
@@ -1089,7 +1131,13 @@ AgentHandle RecastNavigation::createAgent(
 
 	LOG_TRACE(logger_, "Attempting to add agent at %s with parameters %s", position, ap);
 	int idx = crowd.crowd->addAgent(&position.x, &ap);
-	if (idx == -1) throw std::runtime_error("Unable to add agent");
+	if (idx == -1) throw Exception("Unable to add agent");
+
+    const dtCrowdAgent* ag = crowd.crowd->getAgent(idx);
+    if (ag->state == DT_CROWDAGENT_STATE_INVALID)
+    {
+        LOG_WARN(logger_, "Agent with index %s isn't in a valid state", idx);
+    }
 
 	auto agentHandle = crowd.agents.create();
 	auto& agent = crowd.agents[agentHandle];
@@ -1104,6 +1152,8 @@ AgentHandle RecastNavigation::createAgent(
 
 void RecastNavigation::destroy(const PathfindingSceneHandle& pathfindingSceneHandle, const CrowdHandle& crowdHandle, const AgentHandle& agentHandle)
 {
+    LOG_DEBUG(logger_, "Destroying agent %s in crowd %s in scene %s", agentHandle, crowdHandle, pathfindingSceneHandle);
+
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 	auto& crowd = pathfindingScene.crowds[crowdHandle];
 	crowd.agents.destroy(agentHandle);
@@ -1116,6 +1166,8 @@ void RecastNavigation::requestMoveTarget(
 	const glm::vec3& position
 )
 {
+    LOG_DEBUG(logger_, "Requesting move target for agent %s in crowd %s in scene %s to position %s", agentHandle, crowdHandle, pathfindingSceneHandle, position);
+
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 	auto& crowd = pathfindingScene.crowds[crowdHandle];
 	const auto& agent = crowd.agents[agentHandle];
@@ -1149,7 +1201,7 @@ void RecastNavigation::requestMoveTarget(
 
 	if (!targetRef)
 	{
-		LOG_WARN(logger_, "Unable to move agent - A suitable target position was not found.");
+		LOG_WARN(logger_, "Unable to move agent %s in crowd %s in scene %s to position %s - A suitable target position was not found.", agentHandle, crowdHandle, pathfindingSceneHandle, position);
 		return;
 	}
 	
@@ -1164,6 +1216,8 @@ void RecastNavigation::resetMoveTarget(
 	const AgentHandle& agentHandle
 )
 {
+    LOG_DEBUG(logger_, "Resetting move target for agent %s in crowd %s in scene %s", agentHandle, crowdHandle, pathfindingSceneHandle);
+
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 	auto& crowd = pathfindingScene.crowds[crowdHandle];
 	const auto& agent = crowd.agents[agentHandle];
@@ -1199,6 +1253,8 @@ void RecastNavigation::requestMoveVelocity(
 	const glm::vec3& velocity
 )
 {
+    LOG_DEBUG(logger_, "Requesting move velocity for agent %s in crowd %s in scene %s to velocity %s", agentHandle, crowdHandle, pathfindingSceneHandle, velocity);
+
 	auto& pathfindingScene = pathfindingScenes_[pathfindingSceneHandle];
 	auto& crowd = pathfindingScene.crowds[crowdHandle];
 	const auto& agent = crowd.agents[agentHandle];
