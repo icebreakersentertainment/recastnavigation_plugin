@@ -21,16 +21,8 @@ if(ICEENGINE_ENABLE_TRACE_LOGGING)
   list(APPEND RECASTNAVIGATION_PLUGIN_DEFINITIONS -DICEENGINE_ENABLE_TRACE_LOGGING)
 endif()
 
-include_directories(./recastnavigation/recastnavigation/Detour/Include)
-include_directories(./recastnavigation/recastnavigation/DetourCrowd/Include)
-include_directories(./recastnavigation/recastnavigation/DetourTileCache/Include)
-include_directories(./recastnavigation/recastnavigation/DebugUtils/Include)
-include_directories(./recastnavigation/recastnavigation/Recast/Include)
-include_directories(./recastnavigation/recastnavigation/RecastDemo/Include)
-include_directories(./recastnavigation/recastnavigation/RecastDemo/Contrib/fastlz)
-
-# Headers
-include_directories(include)
+find_package(glm REQUIRED)
+find_package(Boost REQUIRED COMPONENTS stacktrace)
 
 # Source
 file(
@@ -50,9 +42,21 @@ list(APPEND SOURCES "${ICEENGINE_BASE_DIR}/src/exceptions/Stacktrace.cpp")
 
 add_library(recastnavigation_plugin SHARED ${SOURCES})
 
+# Headers
+target_include_directories(recastnavigation_plugin PRIVATE include)
+
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/Detour/Include)
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/DetourCrowd/Include)
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/DetourTileCache/Include)
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/DebugUtils/Include)
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/Recast/Include)
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/RecastDemo/Include)
+target_include_directories(recastnavigation_plugin PRIVATE ./recastnavigation/recastnavigation/RecastDemo/Contrib/fastlz)
+
 target_include_directories(recastnavigation_plugin PRIVATE ${ICEENGINE_INCLUDE_DIRS})
-target_include_directories(recastnavigation_plugin PRIVATE ${BOOST_INCLUDE_DIRS})
-target_include_directories(recastnavigation_plugin PRIVATE ${GLM_INCLUDE_DIRS})
 
 target_compile_definitions(recastnavigation_plugin PRIVATE ${RECASTNAVIGATION_PLUGIN_DEFINITIONS})
 target_compile_options(recastnavigation_plugin PRIVATE ${RECASTNAVIGATION_PLUGIN_COMPILER_FLAGS})
+
+target_link_libraries(recastnavigation_plugin PRIVATE glm::glm)
+target_link_libraries(recastnavigation_plugin PRIVATE Boost::stacktrace)
